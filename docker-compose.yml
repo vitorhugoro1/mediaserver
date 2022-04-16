@@ -1,14 +1,72 @@
-version: '3'
+version: "3"
 
 services:
+  # MEDIA REQUESTER
   jellyseerr:
     image: fallenbagel/jellyseerr:latest
     container_name: jellyseerr
     environment:
-        - LOG_LEVEL=debug
-        - TZ=Asia/Tashkent
+      - LOG_LEVEL=debug
+      - TZ=America/Sao_Paulo
     ports:
-        - 5055:5055
+      - 5055:5055
     volumes:
-        - ~/data/jellyseerr/config:/app/config
+      - ~/data/jellyseerr/config:/app/config
     restart: unless-stopped
+
+  # INDEXER
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:develop
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Sao_Paulo
+    volumes:
+      - ~/data/prowlarr/config:/config
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+
+  # INDEXER
+  jackett:
+    image: lscr.io/linuxserver/jackett
+    container_name: jackett
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Sao_Paulo
+      - AUTO_UPDATE=true
+    volumes:
+      - ~/data/jackett/config:/config
+      - ~/data/jackett/downloads:/downloads
+    ports:
+      - 9118:9117
+    restart: unless-stopped
+
+  # DDoS SOLVER
+  flaresolverr:
+    image: flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_HTML=${LOG_HTML:-false}
+      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+      - TZ=America/Sao_Paulo
+    ports:
+      - 8191:8191
+    restart: unless-stopped
+
+  # SUBTITLES
+  # bazarr:
+  #   image: lscr.io/linuxserver/bazarr
+  #   container_name: bazarr
+  #   environment:
+  #     - PUID=1000
+  #     - PGID=1000
+  #     - TZ=America/Sao_Paulo
+  #   volumes:
+  #     - ~/data/bazarr/config:/config
+  #   ports:
+  #     - 6767:6767
+  #   restart: unless-stopped
