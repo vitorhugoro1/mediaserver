@@ -3,7 +3,7 @@ version: "3"
 services:
   # MEDIA REQUESTER
   jellyseerr:
-    image: fallenbagel/jellyseerr:latest
+    image: fallenbagel/jellyseerr:develop
     container_name: jellyseerr
     environment:
       - LOG_LEVEL=debug
