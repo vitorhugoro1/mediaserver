@@ -1,6 +1,22 @@
 version: "3"
 
 services:
+  # TORRENT GUI
+  flood:
+    image: jesec/flood:master
+    container_name: flood
+    command: --port 6060 --allowedpath /data
+    user: 1000:1000
+    environment:
+      HOME: /config
+      TZ: America/Sao_Paulo
+    ports:
+      - 6060:6060
+    volumes:
+      - ~/data/flood/data:/data
+      - ~/data/flood/config:/config
+    restart: unless-stopped
+
   # MEDIA REQUESTER
   jellyseerr:
     image: fallenbagel/jellyseerr:develop
