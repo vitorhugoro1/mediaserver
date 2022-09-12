@@ -17,16 +17,23 @@ services:
   #     - ~/data/flood/config:/config
 
   jellyfin:
-    image: jellyfin/jellyfin
-    restart: unless-stopped
-    user: 1000:1000
-    group_add:
-      - '1001'
-    network_mode: "host"
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Sao_Paulo
     volumes:
-      - ~/data/jellyfin/config:/config
-      - ~/data/jellyfin/cache:/cache
-      - ~/media:/media
+      - ~/data/jellyfin/library:/config
+      - ~/media/Series:/data/tvshows
+      - ~/media/Movies:/data/movies
+      - ~/media/Animes:/data/animes
+    ports:
+      - 8096:8096
+      - 8920:8920 #optional
+      - 7359:7359/udp #optional
+      - 1900:1900/udp #optional
+    restart: unless-stopped
     deploy:
       resources:
         reservations:
