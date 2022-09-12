@@ -2,20 +2,36 @@ version: "3"
 
 services:
   # TORRENT GUI
-  flood:
-    image: jesec/flood:master
-    container_name: flood
-    command: --port 6060 --allowedpath /data
-    user: 1000:1000
-    environment:
-      HOME: /config
-      TZ: America/Sao_Paulo
-    ports:
-      - 6060:6060
-    volumes:
-      - ~/data/flood/data:/data
-      - ~/data/flood/config:/config
+  # flood:
+  #   image: jesec/flood:master
+  #   container_name: flood
+  #   command: --port 6060 --allowedpath /data
+  #   user: 1000:1000
+  #   environment:
+  #     HOME: /config
+  #     TZ: America/Sao_Paulo
+  #   ports:
+  #     - 6060:6060
+  #   volumes:
+  #     - ~/data/flood/data:/data
+  #     - ~/data/flood/config:/config
+
+  jellyfin:
+    image: jellyfin/jellyfin
     restart: unless-stopped
+    user: 1000:1000
+    group_add:
+      - '1001'
+    network_mode: "host"
+    volumes:
+      - ~/data/jellyfin/config:/config
+      - ~/data/jellyfin/cache:/cache
+      - ~/media:/media
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
 
   # MEDIA REQUESTER
   jellyseerr:
