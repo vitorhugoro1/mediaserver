@@ -16,29 +16,29 @@ services:
   #     - ~/data/flood/data:/data
   #     - ~/data/flood/config:/config
 
-  jellyfin:
-    image: lscr.io/linuxserver/jellyfin:latest
-    container_name: jellyfin
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Sao_Paulo
-    volumes:
-      - ~/data/jellyfin/library:/config
-      - ~/media/Series:/data/tvshows
-      - ~/media/Movies:/data/movies
-      - ~/media/Animes:/data/animes
-    ports:
-      - 8096:8096
-      - 8920:8920 #optional
-      - 7359:7359/udp #optional
-      - 1900:1900/udp #optional
-    restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
+  # jellyfin:
+  #   image: lscr.io/linuxserver/jellyfin:latest
+  #   container_name: jellyfin
+  #   environment:
+  #     - PUID=1000
+  #     - PGID=1000
+  #     - TZ=America/Sao_Paulo
+  #   volumes:
+  #     - ~/data/jellyfin/library:/config
+  #     - ~/media/Series:/data/tvshows
+  #     - ~/media/Movies:/data/movies
+  #     - ~/media/Animes:/data/animes
+  #   ports:
+  #     - 8096:8096
+  #     - 8920:8920 #optional
+  #     - 7359:7359/udp #optional
+  #     - 1900:1900/udp #optional
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - capabilities: [gpu]
 
   # MEDIA REQUESTER
   jellyseerr:
@@ -68,20 +68,20 @@ services:
     restart: unless-stopped
 
   # INDEXER
-  jackett:
-    image: lscr.io/linuxserver/jackett
-    container_name: jackett
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Sao_Paulo
-      - AUTO_UPDATE=true
-    volumes:
-      - ~/data/jackett/config:/config
-      - ~/data/jackett/downloads:/downloads
-    ports:
-      - 9118:9117
-    restart: unless-stopped
+  # jackett:
+  #   image: lscr.io/linuxserver/jackett
+  #   container_name: jackett
+  #   environment:
+  #     - PUID=1000
+  #     - PGID=1000
+  #     - TZ=America/Sao_Paulo
+  #     - AUTO_UPDATE=true
+  #   volumes:
+  #     - ~/data/jackett/config:/config
+  #     - ~/data/jackett/downloads:/downloads
+  #   ports:
+  #     - 9118:9117
+  #   restart: unless-stopped
 
   # DDoS SOLVER
   flaresolverr:
