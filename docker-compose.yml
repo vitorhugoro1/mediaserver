@@ -105,7 +105,7 @@ services:
 
   nextcloud:
     image: nextcloud/all-in-one:latest
-    container_name: nextcloud-master
+    container_name: nextcloud-aio-mastercontainer
     environment:
       - NEXTCLOUD_DATADIR=/mnt/ncdata
       - NEXTCLOUD_MOUNT=/mnt/
