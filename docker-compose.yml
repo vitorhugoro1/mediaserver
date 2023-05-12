@@ -67,22 +67,6 @@ services:
       - 9696:9696
     restart: unless-stopped
 
-  # INDEXER
-  # jackett:
-  #   image: lscr.io/linuxserver/jackett
-  #   container_name: jackett
-  #   environment:
-  #     - PUID=1000
-  #     - PGID=1000
-  #     - TZ=America/Sao_Paulo
-  #     - AUTO_UPDATE=true
-  #   volumes:
-  #     - ~/data/jackett/config:/config
-  #     - ~/data/jackett/downloads:/downloads
-  #   ports:
-  #     - 9118:9117
-  #   restart: unless-stopped
-
   # DDoS SOLVER
   flaresolverr:
     image: flaresolverr/flaresolverr:latest
