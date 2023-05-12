@@ -1,5 +1,9 @@
 version: "3"
 
+volumes:
+  nextcloud_aio_mastercontainer:
+    name: nextcloud_aio_mastercontainer
+
 services:
   # MEDIA REQUESTER
   jellyseerr:
@@ -110,7 +114,7 @@ services:
       - NEXTCLOUD_DATADIR=/mnt/ncdata
       - NEXTCLOUD_MOUNT=/mnt/
     volumes:
-      - ~/data/nextcloud/config:/mnt/docker-aio-config
+      - nextcloud_aio_mastercontainer:/mnt/docker-aio-config
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - 8080:8080
