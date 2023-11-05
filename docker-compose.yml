@@ -92,7 +92,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Europe/London
+      - TZ=America/Sao_Paulo
       - WEBUI_PORT=8383
     volumes:
       - ~/data/qbittorrent/config:/config
