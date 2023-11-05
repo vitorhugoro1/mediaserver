@@ -6,45 +6,61 @@ I am building this "setup" to stop subscribe to more services who I really use s
 
 ## Environment
 
-I am in process to move all this setup to a exclusive machine, who will be responsible by manager and monitor all services. In moment this is running in my personal machine with the follow setup:
+My current setup is running in a mid end old laptop who does not have use, then I installed a Ubuntu Server with some custom twearks to make the OS properly work on a notebook, the settings of machine is listed down below:
 
-- Windows on WSL2 (I know it's sucks)
-- Intel Core i5-9400F
-- GTX 1660 6GB OC
-- 16GB DDR4 2666
-- 2x SSD 480GB, 1x SSD 256GB
-- 1x HDD 1TB
-- 1x External HDD 4TB
+- Intel Core i5-5300U
+- Intel Graphics 5500
+- 8GB DDR3L
+- 1x SSD Kingston 256GB
+- 1x External HDD Seagate 4TB
 
 ## Services and Tools
 
-- Flood
-- Jellyseer
-- Prowlarr
-- Jackett
-- Flaresolverr
-- Bazarr
-- Radarr
-- Sonarr
-- QBittorrent
+The orchestrate things I installed [CasaOS](https://casaos.io/) with [Portainer](https://www.portainer.io/), where I use the CasaOS has a Dashboard and Monitoring tool and the Portainer to manage the services on Docker. I have the follow services installed on my "server":
 
-## Need transfer to docker or setup
+- [Jellyfin](https://jellyfin.org/)
+- [Jellyseerr](https://github.com/Fallenbagel/jellyseerr)
+- [Prowlarr](https://prowlarr.com/)
+- [Bazarr](https://wiki.bazarr.media/)
+- [Radarr](https://radarr.video/)
+- [Sonarr](https://sonarr.tv/)
+- [Flaresolverr](https://github.com/FlareSolverr/FlareSolverr)
+- [QBittorrent](https://www.qbittorrent.org/)
+- [Home Assistant](https://www.home-assistant.io/)
+- [Cloudflared](https://github.com/cloudflare/cloudflared)
+- [Tailscale](https://tailscale.com/)
 
-- Jellyfin
-- Tdarr
-- NextCloud
-- Syncthing
+## Install commands
 
-## Make commands
+To simple install the services, even without the CasaOS UI, I have a custom Makefile with some simplified commands to make the setup run quick without need to make something complex:
 
 ```bash
-make update # update and recreate all images
+# update and recreate all images
+make update
 
-make update-images # pull most recents images
+# pull most recents images
+make update-images
 
-make recreate # force build and recreate all docker-compose services
+# force build and recreate all docker-compose services
+make recreate
 ```
 
 ## References
 
-**I need find and organize all of them**
+Most my setup is make using this channels and blogs as reference to inspiration or ideas:
+
+- [Everything Smart Home](https://www.youtube.com/@EverythingSmartHome)
+- [Christian Lempa](https://www.youtube.com/@christianlempa)
+- [Hardware Haven](https://www.youtube.com/@HardwareHaven)
+- [Tech Hut](https://www.youtube.com/@TechHut)
+- [Techno Tim](https://www.youtube.com/@TechnoTim)
+- [Wolfgangs Channel](https://www.youtube.com/@WolfgangsChannel)
+
+## Future updates
+
+- [ ] Use Proxmox as OS
+- [ ] Automate even the OS setup with Ansible
+- [ ] Add a new main server as Zimaboard or Dell Optiplex Micro
+- [ ] Automate Jellyfin and Home Assistant initial setup
+- [ ] Organize the contents of automations
+- [ ] Add newtwork layer with DNS Server such like PiHole
