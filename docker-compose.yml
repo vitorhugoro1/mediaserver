@@ -1,6 +1,42 @@
 version: "3"
 
 services:
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    restart: unless-stopped
+    user: '1000'
+    ports:
+      - 3010:3000
+    environment:
+      GF_INSTALL_PLUGINS: influxdb
+    volumes:
+      - ~/data/grafana:/var/lib/grafana
+
+  influxdb2:
+    image: influxdb:2
+    restart: unless-stopped
+    ports:
+      - 8086:8086
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME_FILE: /run/secrets/influxdb2-admin-username
+      DOCKER_INFLUXDB_INIT_PASSWORD_FILE: /run/secrets/influxdb2-admin-password
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN_FILE: /run/secrets/influxdb2-admin-token
+      DOCKER_INFLUXDB_INIT_ORG: docs
+      DOCKER_INFLUXDB_INIT_BUCKET: home
+    secrets:
+      - influxdb2-admin-username
+      - influxdb2-admin-password
+      - influxdb2-admin-token
+    volumes:
+      - type: volume
+        source: influxdb2-data
+        target: /var/lib/influxdb2
+      - type: volume
+        source: influxdb2-config
+        target: /etc/influxdb2
+
   # MEDIA REQUESTER
   jellyseerr:
     image: fallenbagel/jellyseerr:develop
@@ -112,3 +148,15 @@ services:
     restart: unless-stopped
     privileged: true
     network_mode: host
+
+secrets:
+  influxdb2-admin-username:
+    file: ~/.env.influxdb2-admin-username
+  influxdb2-admin-password:
+    file: ~/.env.influxdb2-admin-password
+  influxdb2-admin-token:
+    file: ~/.env.influxdb2-admin-token
+
+volumes:
+  influxdb2-data:
+  influxdb2-config:
