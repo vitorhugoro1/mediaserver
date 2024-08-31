@@ -87,7 +87,7 @@ services:
       - TZ=America/Sao_Paulo
     volumes:
       - ~/data/bazarr/config:/config
-      - ~/media:/mediaserver
+      - /media/Expansion/Media Server:/mediaserver
     ports:
       - 6767:6767
     restart: unless-stopped
@@ -101,7 +101,7 @@ services:
       - TZ=America/Sao_Paulo
     volumes:
       - ~/data/radarr/config:/config
-      - ~/media:/movies
+      - /media/Expansion/Media Server:/movies
       - ~/downloaded-torrents/Completos:/downloads #optional
     ports:
       - 7878:7878
@@ -116,7 +116,7 @@ services:
       - TZ=America/Sao_Paulo
     volumes:
       - ~/data/sonarr/config:/config
-      - ~/media:/movies
+      - /media/Expansion/Media Server:/movies
       - ~/downloaded-torrents/Completos:/downloads #optional
     ports:
       - 8989:8989
