@@ -1,6 +1,15 @@
 version: "3"
 
 services:
+  crontab-ui:
+    image: alseambusher/crontab-ui
+    container_name: crontab-ui
+    restart: unless-stopped
+    ports:
+      - 8003:8000
+    volumes:
+      - ~/data/crontab:/crontab-ui/crontabs/
+
   grafana:
     image: grafana/grafana
     container_name: grafana
