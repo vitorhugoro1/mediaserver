@@ -29,6 +29,8 @@ The orchestrate things I installed [CasaOS](https://casaos.io/) with [Portainer]
 - [Home Assistant](https://www.home-assistant.io/)
 - [Cloudflared](https://github.com/cloudflare/cloudflared)
 - [Tailscale](https://tailscale.com/)
+- [Grafana](http://grafana.com)
+- [InfluxDB](https://www.influxdata.com)
 
 ## Install commands
 
@@ -44,6 +46,15 @@ make update-images
 # force build and recreate all docker-compose services
 make recreate
 ```
+
+### Monitoring
+
+To configure the monitoring setup, I use [Telegraf](https://docs.influxdata.com/telegraf/v1/) from InfluxData which uses InfluxDB through an Grafana setup to visualize my processes data, like CPU, Memory, Storage, Docker, etc.
+
+This setup can be way extended than are now, but I just use to a simple and straightforward setup to monitor my machine which can be easily replicated to another machine if I need.
+
+- [How to install Telegraf](https://docs.influxdata.com/telegraf/v1/install/#download-and-install-telegraf)
+- [How to generate a custom config file based on which plugins I want](https://docs.influxdata.com/telegraf/v1/commands/#run-telegraf-but-only-enable-specific-plugins)
 
 ## References
 
