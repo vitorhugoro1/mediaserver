@@ -13,9 +13,11 @@ services:
       - 9696:9696 # prowlarr
     volumes:
       - ~/data/gluetun:/gluetun
+    devices:
+      - /dev/net/tun:/dev/net/tun
     environment:
       VPN_SERVICE_PROVIDER: protonvpn
-      FIREWALL_VPN_INPUT_PORTS: port
+      VPN_TYPE: openvpn
       OPENVPN_USER: /run/secrets/openvpn-username
       OPENVPN_PASSWORD: /run/secrets/openvpn-password
       SERVER_COUNTRIES: Switzerland
