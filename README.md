@@ -31,6 +31,7 @@ The orchestrate things I installed [CasaOS](https://casaos.io/) with [Portainer]
 - [Tailscale](https://tailscale.com/)
 - [Grafana](http://grafana.com)
 - [InfluxDB](https://www.influxdata.com)
+- [Gluetun](https://github.com/qdm12/gluetun-wiki/tree/main)
 
 ## Install commands
 

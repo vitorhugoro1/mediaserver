@@ -1,6 +1,36 @@
 version: "3"
 
 services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - 8383:8383 # qbittorrent ui
+      - 6881:6881 # qbittorrent
+      - 6881:6881/udp # qbittorrent
+      - 9696:9696 # prowlarr
+    volumes:
+      - ~/data/gluetun:/gluetun
+    environment:
+      VPN_SERVICE_PROVIDER: protonvpn
+      FIREWALL_VPN_INPUT_PORTS: port
+      OPENVPN_USER: /run/secrets/openvpn-username
+      OPENVPN_PASSWORD: /run/secrets/openvpn-password
+      SERVER_COUNTRIES: Switzerland
+      PORT_FORWARD_ONLY: on
+      VPN_PORT_FORWARDING: on
+    secrets:
+      - openvpn-username
+      - openvpn-password
+    healthcheck:
+      test: ping -c 1 www.google.com || exit 1
+      interval: 60s
+      timeout: 20s
+      retries: 5
+    restart: unless-stopped
+
   crontab-ui:
     image: alseambusher/crontab-ui
     container_name: crontab-ui
@@ -69,8 +99,7 @@ services:
       - TZ=America/Sao_Paulo
     volumes:
       - ~/data/prowlarr/config:/config
-    ports:
-      - 9696:9696
+    network_mode: service:gluetun
     restart: unless-stopped
 
   # DDoS SOLVER
@@ -142,10 +171,7 @@ services:
     volumes:
       - ~/data/qbittorrent/config:/config
       - ~/downloaded-torrents/Completos:/downloads
-    ports:
-      - 8383:8383
-      - 6881:6881
-      - 6881:6881/udp
+    network_mode: service:gluetun
     restart: unless-stopped
 
   homeassistant:
@@ -165,6 +191,10 @@ secrets:
     file: ~/.env.influxdb2-admin-password
   influxdb2-admin-token:
     file: ~/.env.influxdb2-admin-token
+  openvpn-username:
+    file: ~/.env.openvpn-username
+  openvpn-password:
+    file: ~/.env.openvpn-password
 
 volumes:
   influxdb2-data:
