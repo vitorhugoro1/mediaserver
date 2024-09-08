@@ -1,6 +1,83 @@
 version: "3"
 
 services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - 8383:8383 # qbittorrent ui
+      - 6881:6881 # qbittorrent
+      - 6881:6881/udp # qbittorrent
+      - 9696:9696 # prowlarr
+    volumes:
+      - ~/data/gluetun:/gluetun
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      VPN_SERVICE_PROVIDER: protonvpn
+      VPN_TYPE: openvpn
+      OPENVPN_USER: /run/secrets/openvpn-username
+      OPENVPN_PASSWORD: /run/secrets/openvpn-password
+      SERVER_COUNTRIES: Switzerland
+      PORT_FORWARD_ONLY: on
+      VPN_PORT_FORWARDING: on
+    secrets:
+      - openvpn-username
+      - openvpn-password
+    healthcheck:
+      test: ping -c 1 www.google.com || exit 1
+      interval: 60s
+      timeout: 20s
+      retries: 5
+    restart: unless-stopped
+
+  crontab-ui:
+    image: alseambusher/crontab-ui
+    container_name: crontab-ui
+    restart: unless-stopped
+    ports:
+      - 8003:8000
+    volumes:
+      - ~/data/crontab:/crontab-ui/crontabs/
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    restart: unless-stopped
+    user: "0"
+    ports:
+      - 3010:3000
+    # environment:
+      # GF_INSTALL_PLUGINS: influxdb Optional
+    volumes:
+      - ~/data/grafana:/var/lib/grafana
+
+  influxdb2:
+    image: influxdb:2
+    restart: unless-stopped
+    ports:
+      - 8086:8086
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME_FILE: /run/secrets/influxdb2-admin-username
+      DOCKER_INFLUXDB_INIT_PASSWORD_FILE: /run/secrets/influxdb2-admin-password
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN_FILE: /run/secrets/influxdb2-admin-token
+      DOCKER_INFLUXDB_INIT_ORG: docs
+      DOCKER_INFLUXDB_INIT_BUCKET: home
+    secrets:
+      - influxdb2-admin-username
+      - influxdb2-admin-password
+      - influxdb2-admin-token
+    volumes:
+      - type: volume
+        source: influxdb2-data
+        target: /var/lib/influxdb2
+      - type: volume
+        source: influxdb2-config
+        target: /etc/influxdb2
+
   # MEDIA REQUESTER
   jellyseerr:
     image: fallenbagel/jellyseerr:develop
@@ -24,8 +101,7 @@ services:
       - TZ=America/Sao_Paulo
     volumes:
       - ~/data/prowlarr/config:/config
-    ports:
-      - 9696:9696
+    network_mode: service:gluetun
     restart: unless-stopped
 
   # DDoS SOLVER
@@ -51,7 +127,7 @@ services:
       - TZ=America/Sao_Paulo
     volumes:
       - ~/data/bazarr/config:/config
-      - ~/media:/mediaserver
+      - /media/Expansion/Media Server:/mediaserver
     ports:
       - 6767:6767
     restart: unless-stopped
@@ -65,7 +141,7 @@ services:
       - TZ=America/Sao_Paulo
     volumes:
       - ~/data/radarr/config:/config
-      - ~/media:/movies
+      - /media/Expansion/Media Server:/movies
       - ~/downloaded-torrents/Completos:/downloads #optional
     ports:
       - 7878:7878
@@ -80,7 +156,7 @@ services:
       - TZ=America/Sao_Paulo
     volumes:
       - ~/data/sonarr/config:/config
-      - ~/media:/movies
+      - /media/Expansion/Media Server:/movies
       - ~/downloaded-torrents/Completos:/downloads #optional
     ports:
       - 8989:8989
@@ -97,10 +173,7 @@ services:
     volumes:
       - ~/data/qbittorrent/config:/config
       - ~/downloaded-torrents/Completos:/downloads
-    ports:
-      - 8383:8383
-      - 6881:6881
-      - 6881:6881/udp
+    network_mode: service:gluetun
     restart: unless-stopped
 
   homeassistant:
@@ -112,3 +185,19 @@ services:
     restart: unless-stopped
     privileged: true
     network_mode: host
+
+secrets:
+  influxdb2-admin-username:
+    file: ~/.env.influxdb2-admin-username
+  influxdb2-admin-password:
+    file: ~/.env.influxdb2-admin-password
+  influxdb2-admin-token:
+    file: ~/.env.influxdb2-admin-token
+  openvpn-username:
+    file: ~/.env.openvpn-username
+  openvpn-password:
+    file: ~/.env.openvpn-password
+
+volumes:
+  influxdb2-data:
+  influxdb2-config:
