@@ -1,0 +1,16 @@
+services:
+  qbittorrent-exporter:
+    container_name: qbittorrent-exporter
+    environment:
+      - QBITTORRENT_USERNAME=username
+      - QBITTORRENT_PASSWORD=password
+      - QBITTORRENT_BASE_URL=http://qbittorrent:8383
+    ports:
+      - 17871:17871
+    image: caseyscarborough/qbittorrent-exporter:latest
+
+networks:
+  mediaserver:
+    name: mediaserver_default
+    driver: bridge
+    external: true
