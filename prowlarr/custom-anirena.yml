@@ -1,6 +1,6 @@
 ---
-id: aniRena
-name: AniRena
+id: aniRena-custom
+name: AniRena Custom
 description: "AniRena is a Public torrent tracker for the latest anime and Japanese related torrents"
 language: en-US
 type: public
