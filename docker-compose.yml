@@ -1,29 +1,63 @@
 services:
+  ## Network and DNS
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    network_mode: host
+    environment:
+      TZ: "America/Sao_Paulo"
+      WEBPASSWORD_FILE: /run/secrets/pihole-webpassword
+    volumes:
+      - ~/data/pihole/etc-pihole:/etc/pihole
+      - ~/data/pihole/etc-dnsmasq.d:/etc/dnsmasq.d
+    restart: unless-stopped
+    secrets:
+      - pihole-webpassword
+
+  nginx-proxy-manager:
+    container_name: npm
+    image: jc21/nginx-proxy-manager:latest
+    ports:
+      - "8080:80"
+      - "8443:443"
+      - "81:81"
+    volumes:
+      - ~/data/npm/data:/data
+      - ~/data/npm/letsencrypt:/etc/letsencrypt
+    restart: unless-stopped
+    networks:
+      - homelab
+
   gluetun:
     image: qmcgaw/gluetun
     container_name: gluetun
     cap_add:
       - NET_ADMIN
+      - SYS_MODULE
     ports:
       - 8383:8383 # qbittorrent ui
       - 6881:6881 # qbittorrent
       - 6881:6881/udp # qbittorrent
       - 9696:9696 # prowlarr
+      - 8191:8191 # byparr
     volumes:
       - ~/data/gluetun:/gluetun
     devices:
       - /dev/net/tun:/dev/net/tun
     environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: America/Sao_Paulo
+      HEALTH_TARGET_ADDRESS: 1.1.1.1:443
+      UPDATER_PERIOD: 24h
       VPN_SERVICE_PROVIDER: protonvpn
-      VPN_TYPE: openvpn
-      OPENVPN_USER: /run/secrets/openvpn-username
-      OPENVPN_PASSWORD: /run/secrets/openvpn-password
+      VPN_TYPE: wireguard
+      VPN_PORT_FORWARDING_UP_COMMAND: /bin/sh -c 'wget -O- --retry-connrefused --post-data "json={\"listen_port\":{{PORTS}}}" http://127.0.0.1:8383/api/v2/app/setPreferences 2>&1'
       SERVER_COUNTRIES: Switzerland
       PORT_FORWARD_ONLY: on
       VPN_PORT_FORWARDING: on
     secrets:
-      - openvpn-username
-      - openvpn-password
+      - openvpn-wireguard-private-key
     healthcheck:
       test: ping -c 1 www.google.com || exit 1
       interval: 60s
@@ -31,14 +65,14 @@ services:
       retries: 5
     restart: unless-stopped
 
-  crontab-ui:
-    image: alseambusher/crontab-ui
-    container_name: crontab-ui
-    restart: unless-stopped
-    ports:
-      - 8003:8000
-    volumes:
-      - ~/data/crontab:/crontab-ui/crontabs/
+  # crontab-ui:
+  #   image: alseambusher/crontab-ui
+  #   container_name: crontab-ui
+  #   restart: unless-stopped
+  #   ports:
+  #     - 8003:8000
+  #   volumes:
+  #     - ~/data/crontab:/crontab-ui/crontabs/
 
   grafana:
     image: grafana/grafana
@@ -48,7 +82,7 @@ services:
     ports:
       - 3010:3000
     # environment:
-      # GF_INSTALL_PLUGINS: influxdb Optional
+    # GF_INSTALL_PLUGINS: influxdb Optional
     volumes:
       - ~/data/grafana:/var/lib/grafana
 
@@ -78,13 +112,20 @@ services:
 
   # MEDIA REQUESTER
   jellyseerr:
-    image: fallenbagel/jellyseerr:develop
+    image: ghcr.io/seerr-team/seerr:develop
+    init: true
     container_name: jellyseerr
     environment:
       - LOG_LEVEL=debug
       - TZ=America/Sao_Paulo
     ports:
       - 5055:5055
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/status || exit 1
+      start_period: 20s
+      timeout: 3s
+      interval: 15s
+      retries: 3
     volumes:
       - ~/data/jellyseerr/config:/app/config
     restart: unless-stopped
@@ -104,17 +145,42 @@ services:
     restart: unless-stopped
 
   # DDoS SOLVER
-  flaresolverr:
-    image: flaresolverr/flaresolverr:latest
-    container_name: flaresolverr
+  # flaresolverr:
+  #   image: flaresolverr/flaresolverr:latest
+  #   container_name: flaresolverr
+  #   environment:
+  #     - LOG_LEVEL=${LOG_LEVEL:-info}
+  #     - LOG_HTML=${LOG_HTML:-false}
+  #     - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+  #     - TZ=America/Sao_Paulo
+  #   ports:
+  #     - 8191:8191
+  #   restart: unless-stopped
+
+  byparr:
+    image: ghcr.io/thephaseless/byparr:latest
+    container_name: byparr
+    init: true
     environment:
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - LOG_HTML=${LOG_HTML:-false}
-      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+      - PUID=1000
+      - PGID=1000
+      # If you want to use Proxy
+      # - PROXY_SERVER=
+      # - PROXY_USERNAME=
+      # - PROXY_PASSWORD=
       - TZ=America/Sao_Paulo
-    ports:
-      - 8191:8191
+    network_mode: service:gluetun
     restart: unless-stopped
+
+  dockhand:
+    image: fnsys/dockhand:latest
+    container_name: dockhand
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/data/dockhand:/app/data
 
   # SUBTITLES
   bazarr:
@@ -175,15 +241,16 @@ services:
     network_mode: service:gluetun
     restart: unless-stopped
 
-  homeassistant:
-    container_name: homeassistant
-    image: "ghcr.io/home-assistant/home-assistant:stable"
-    volumes:
-      - ~/data/homeassistant/config:/config
-      - /etc/localtime:/etc/localtime:ro
-    restart: unless-stopped
-    privileged: true
-    network_mode: host
+  # Externally installed at moment
+  # homeassistant:
+  #   container_name: homeassistant
+  #   image: "ghcr.io/home-assistant/home-assistant:stable"
+  #   volumes:
+  #     - ~/data/homeassistant/config:/config
+  #     - /etc/localtime:/etc/localtime:ro
+  #   restart: unless-stopped
+  #   privileged: true
+  #   network_mode: host
 
 secrets:
   influxdb2-admin-username:
@@ -196,7 +263,16 @@ secrets:
     file: ~/.env.openvpn-username
   openvpn-password:
     file: ~/.env.openvpn-password
+  openvpn-wireguard-private-key:
+    environment: WIREGUARD_PRIVATE_KEY
+  pihole-webpassword:
+    file: ~/.env.pihole-webpassword
 
 volumes:
   influxdb2-data:
   influxdb2-config:
+
+networks:
+  homelab:
+    driver: bridge
+    external: true
