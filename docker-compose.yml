@@ -52,6 +52,7 @@ services:
       UPDATER_PERIOD: 24h
       VPN_SERVICE_PROVIDER: protonvpn
       VPN_TYPE: wireguard
+      WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY}
       VPN_PORT_FORWARDING_UP_COMMAND: /bin/sh -c 'wget -O- --retry-connrefused --post-data "json={\"listen_port\":{{PORTS}}}" http://127.0.0.1:8383/api/v2/app/setPreferences 2>&1'
       SERVER_COUNTRIES: Switzerland
       PORT_FORWARD_ONLY: on
