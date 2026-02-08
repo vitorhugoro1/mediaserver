@@ -30,5 +30,7 @@ services:
       - N8N_RUNNERS_VERSION=1.121.0
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+    volumes:
+      - ./n8n/n8n-task-runners.json:/etc/n8n-task-runners.json
     depends_on:
       - n8n
