@@ -21,7 +21,7 @@ services:
 
   n8n-task-runners:
     build:
-      context: .
+      context: ./n8n
       dockerfile: n8n/Dockerfile.runner
       args:
         - N8N_RUNNERS_VERSION=1.121.0
