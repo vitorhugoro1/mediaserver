@@ -1,7 +1,7 @@
 services:
   n8n:
-    image: n8nio/n8n:1.121.0
-    container_name: n8n
+    image: n8nio/n8n:1.121.3
+    container_name: n8n-main
     environment:
       - TZ=America/Sao_Paulo
       - NODE_FUNCTION_ALLOW_BUILTIN=*
@@ -11,6 +11,8 @@ services:
       - WEBHOOK_URL=${N8N_WEBHOOK_URL}
       - CREDENTIALS_OVERWRITE_ENDPOINT=send-credentials
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_SKIP_AUTH_ON_OAUTH_CALLBACK=true
+      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
       - N8N_PATH=/
       - N8N_PUBLIC_API_ENDPOINT=api
     ports:
@@ -24,10 +26,10 @@ services:
       context: ./
       dockerfile: n8n/Dockerfile.runner
       args:
-        - N8N_RUNNERS_VERSION=1.121.0
+        - N8N_RUNNERS_VERSION=1.121.3
     container_name: n8n-runners
     environment:
-      - N8N_RUNNERS_VERSION=1.121.0
+      - N8N_RUNNERS_VERSION=1.121.3
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
     volumes:
