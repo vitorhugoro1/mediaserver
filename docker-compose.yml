@@ -177,6 +177,8 @@ services:
     image: fnsys/dockhand:latest
     container_name: dockhand
     restart: unless-stopped
+    group_add:
+      - ${DOCKER_GID:-992}
     ports:
       - 3000:3000
     volumes:
