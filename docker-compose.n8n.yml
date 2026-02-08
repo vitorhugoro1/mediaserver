@@ -23,6 +23,8 @@ services:
     build:
       context: .
       dockerfile: n8n/Dockerfile.runner
+      args:
+        - N8N_RUNNERS_VERSION=1.121.0
     container_name: n8n-runners
     environment:
       - N8N_RUNNERS_VERSION=1.121.0
