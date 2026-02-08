@@ -3,7 +3,7 @@
 #This is so messy...
 
 #Beat intel_gpu_top into submission
-JSON=$(/usr/bin/timeout -k 3 3 sudo /usr/bin/intel_gpu_top -J)
+JSON=$(/usr/bin/timeout -k 3 3 /usr/bin/intel_gpu_top -J)
 VIDEO_UTIL=$(echo "$JSON"|grep busy|sort|tail -1|cut -d ":" -f2|cut -d "," -f1|cut -d " " -f2)
 
 
