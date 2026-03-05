@@ -23,8 +23,8 @@
                 "DEPLOYMENT_NAME"
             ],
             "env-overrides": {
-                "NODE_FUNCTION_ALLOW_BUILTIN": "crypto",
-                "NODE_FUNCTION_ALLOW_EXTERNAL": "moment,uuid,mal-scraper",
+                "NODE_FUNCTION_ALLOW_BUILTIN": "crypto,zlib,fs,path,os",
+                "NODE_FUNCTION_ALLOW_EXTERNAL": "moment,uuid,mal-scraper,axios,dayjs,cheerio",
                 "N8N_RUNNERS_HEALTH_CHECK_SERVER_HOST": "0.0.0.0"
             }
         },
@@ -50,8 +50,8 @@
             ],
             "env-overrides": {
                 "PYTHONPATH": "/opt/runners/task-runner-python",
-                "N8N_RUNNERS_STDLIB_ALLOW": "json",
-                "N8N_RUNNERS_EXTERNAL_ALLOW": "numpy,pandas"
+                "N8N_RUNNERS_STDLIB_ALLOW": "json,os,sys,datetime",
+                "N8N_RUNNERS_EXTERNAL_ALLOW": "numpy,pandas,requests,beautifulsoup4"
             }
         }
     ]
