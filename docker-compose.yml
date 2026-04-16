@@ -14,22 +14,22 @@ services:
     secrets:
       - pihole-webpassword
 
-  nginx-proxy-manager:
-    container_name: npm
-    image: jc21/nginx-proxy-manager:latest
-    ports:
-      - "8080:80"
-      - "8443:443"
-      - "81:81"
-    volumes:
-      - ~/data/npm/data:/data
-      - ~/data/npm/letsencrypt:/etc/letsencrypt
-    restart: unless-stopped
-    networks:
-      - homelab
+  # nginx-proxy-manager:
+  #   container_name: npm
+  #   image: jc21/nginx-proxy-manager:latest
+  #   ports:
+  #     - "8080:80"
+  #     - "8443:443"
+  #     - "81:81"
+  #   volumes:
+  #     - ~/data/npm/data:/data
+  #     - ~/data/npm/letsencrypt:/etc/letsencrypt
+  #   restart: unless-stopped
+  #   networks:
+  #     - homelab
 
   gluetun:
-    image: qmcgaw/gluetun
+    image: qmcgaw/gluetun:latest
     container_name: gluetun
     cap_add:
       - NET_ADMIN
@@ -49,14 +49,16 @@ services:
       PGID: 1000
       TZ: America/Sao_Paulo
       HEALTH_TARGET_ADDRESS: 1.1.1.1:443
-      UPDATER_PERIOD: 24h
+      UPDATER_PERIOD: 1h
       VPN_SERVICE_PROVIDER: protonvpn
       VPN_TYPE: wireguard
       WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY}
+      WIREGUARD_ADDRESSES: 10.2.0.2/32
       VPN_PORT_FORWARDING_UP_COMMAND: /bin/sh -c 'wget -O- --retry-connrefused --post-data "json={\"listen_port\":{{PORTS}}}" http://127.0.0.1:8383/api/v2/app/setPreferences 2>&1'
-      SERVER_COUNTRIES: Switzerland
+      SERVER_COUNTRIES: "Switzerland,Spain,Panama"
       PORT_FORWARD_ONLY: on
       VPN_PORT_FORWARDING: on
+      VPN_PORT_FORWARDING_PROVIDER: protonvpn
     secrets:
       - openvpn-wireguard-private-key
     healthcheck:
@@ -133,7 +135,7 @@ services:
 
   # INDEXER
   prowlarr:
-    image: linuxserver/prowlarr:develop
+    image: linuxserver/prowlarr:latest
     container_name: prowlarr
     environment:
       - PUID=1000
