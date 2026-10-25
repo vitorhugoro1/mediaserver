@@ -55,7 +55,7 @@ services:
       WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY}
       WIREGUARD_ADDRESSES: 10.2.0.2/32
       VPN_PORT_FORWARDING_UP_COMMAND: /bin/sh -c 'wget -O- --retry-connrefused --post-data "json={\"listen_port\":{{PORTS}}}" http://127.0.0.1:8383/api/v2/app/setPreferences 2>&1'
-      SERVER_COUNTRIES: "Switzerland,Spain,Panama"
+      SERVER_COUNTRIES: Switzerland,Panama,Netherlands,Spain,Sweden
       PORT_FORWARD_ONLY: on
       VPN_PORT_FORWARDING: on
       VPN_PORT_FORWARDING_PROVIDER: protonvpn
