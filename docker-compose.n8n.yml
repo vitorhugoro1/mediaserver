@@ -19,6 +19,15 @@ services:
       - QUEUE_HEALTH_CHECK_ACTIVE=true
       - N8N_PATH=/
       - N8N_PUBLIC_API_ENDPOINT=api
+      - N8N_METRICS=true
+      - N8N_METRICS_INCLUDE_QUEUE_METRICS=true
+      - N8N_METRICS_INCLUDE_SYSTEM_TASK_METRICS=true
+      - N8N_METRICS_INCLUDE_WEBHOOK_METRICS=true
+      - N8N_METRICS_INCLUDE_WORKFLOW_INFO=true
+      - N8N_METRICS_INCLUDE_POLL_TRIGGER_METRICS=true
+      - N8N_SCHEDULER_ENABLED=true
+      - N8N_SCHEDULER_POLL_TRIGGERS_ENABLED=true
+      - N8N_SCHEDULER_SYSTEM_TASKS_ENABLED=true
     ports:
       - 5678:5678
     volumes:
@@ -46,10 +55,12 @@ services:
       args:
         - N8N_RUNNERS_VERSION=stable
     container_name: n8n-runners
+    restart: unless-stopped
     environment:
       - N8N_RUNNERS_VERSION=stable
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - N8N_RUNNERS_MAX_CONCURRENCY=20
     volumes:
       - ./n8n/n8n-task-runners.json:/etc/n8n-task-runners.json
     depends_on:
@@ -90,10 +101,12 @@ services:
       args:
         - N8N_RUNNERS_VERSION=stable
     container_name: n8n-worker-runners
+    restart: unless-stopped
     environment:
       - N8N_RUNNERS_VERSION=stable
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - N8N_RUNNERS_MAX_CONCURRENCY=20
     volumes:
       - ./n8n/n8n-task-runners.json:/etc/n8n-task-runners.json
     depends_on:
