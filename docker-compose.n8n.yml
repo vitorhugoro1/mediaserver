@@ -87,6 +87,8 @@ services:
       - QUEUE_HEALTH_CHECK_ACTIVE=true
       - N8N_PATH=/
       - N8N_PUBLIC_API_ENDPOINT=api
+      - N8N_METRICS=true
+      - N8N_METRICS_INCLUDE_QUEUE_METRICS=true
     volumes:
       - ~/data/n8n:/home/node/.n8n
     restart: unless-stopped

@@ -1,6 +1,19 @@
-# n8n Webhook Executions (InfluxDB)
+# Dashboards n8n para InfluxDB
 
-Adaptação do dashboard [n8n-webhook-executions](https://github.com/n8n-io/n8n-observability/tree/main/dashboards/grafana/n8n-webhook-executions) para InfluxDB 2 (Flux).
+Port dos dashboards de [n8n-observability](https://github.com/n8n-io/n8n-observability/tree/main/dashboards/grafana) para InfluxDB 2 (Flux), mesmos painéis e layout:
+
+| Arquivo | Origem | Métricas usadas |
+|---|---|---|
+| `n8n-webhook-executions-influxdb.json` | n8n-webhook-executions | `n8n_webhook_request_duration_seconds_*`, `n8n_workflow_info` |
+| `n8n-form-executions-influxdb.json` | n8n-form-executions | `n8n_form_submission_duration_seconds_*`, `n8n_workflow_info` |
+| `n8n-poll-triggers-influxdb.json` | n8n-poll-triggers | `n8n_poll_trigger_*`, `n8n_scheduler_*` |
+| `n8n-scheduler-influxdb.json` | n8n-scheduler | `n8n_scheduler_*` |
+| `n8n-system-tasks-influxdb.json` | n8n-system-tasks | `n8n_system_task_*` |
+
+Diferenças em relação ao original:
+- O filtro "Main instance" usa a tag `url` do Telegraf (o `instance` do Prometheus não existe aqui).
+- Webhook e form medem requests HTTP (sucesso = 2xx/3xx, falha = 4xx/5xx), sem depender de métricas de execução do worker.
+- Cada métrica do n8n exige a variável de ambiente correspondente (`N8N_METRICS_INCLUDE_*`) e só aparece depois da primeira observação.
 
 ## Coleta (Telegraf)
 

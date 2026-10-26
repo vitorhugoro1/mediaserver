@@ -1,0 +1,749 @@
+{
+  "uid": "n8n-form-executions-influxdb",
+  "title": "n8n Form Executions (InfluxDB)",
+  "tags": [
+    "n8n",
+    "forms"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "auto",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "InfluxDB",
+        "type": "datasource",
+        "query": "influxdb",
+        "refresh": 1
+      },
+      {
+        "name": "bucket",
+        "label": "Bucket",
+        "type": "constant",
+        "hide": 2,
+        "query": "home",
+        "options": [
+          {
+            "text": "home",
+            "value": "home",
+            "selected": true
+          }
+        ],
+        "current": {
+          "text": "home",
+          "value": "home"
+        }
+      },
+      {
+        "name": "workflow",
+        "label": "Workflow",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "${datasource}"
+        },
+        "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n  |> rename(columns: {workflow_id: \"__value\", workflow_name: \"__text\"})",
+        "multi": true,
+        "includeAll": true,
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "n8n_base_url",
+        "label": "Environment",
+        "type": "custom",
+        "query": "Local : http://localhost:5678",
+        "options": [
+          {
+            "text": "Local",
+            "value": "http://localhost:5678",
+            "selected": true
+          }
+        ],
+        "current": {
+          "text": "Local",
+          "value": "http://localhost:5678",
+          "selected": true
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 7,
+      "type": "barchart",
+      "title": "Form Submissions by Form Path — Success vs Failed",
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 10
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Success"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "horizontal",
+        "stacking": "normal",
+        "showValue": "auto",
+        "xTickLabelRotation": 0,
+        "xField": "Endpoint",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_count\"))\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> increase()\n  |> last()\n  |> group()\n  |> withNames()\n  |> group(columns: [\"workflow_id\", \"workflow_name\", \"form_path\"])\n  |> reduce(\n    identity: {Success: 0.0, Failed: 0.0},\n    fn: (r, accumulator) => ({\n      Success: accumulator.Success + (if r.status_code =~ /^[23]/ then r._value else 0.0),\n      Failed: accumulator.Failed + (if r.status_code =~ /^[45]/ then r._value else 0.0),\n    }),\n  )\n  |> map(fn: (r) => ({r with endpoint: r.workflow_name}))\n  |> group()\n  |> keep(columns: [\"endpoint\", \"workflow_id\", \"form_path\", \"Success\", \"Failed\"])"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "reducer": "sum",
+              "include": [
+                "Success",
+                "Failed"
+              ]
+            },
+            "alias": "Total"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Total",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Total": true
+            },
+            "renameByName": {
+              "endpoint": "Endpoint",
+              "form_path": "Form Path",
+              "workflow_id": "Workflow ID"
+            },
+            "indexByName": {
+              "endpoint": 0,
+              "Success": 1,
+              "Failed": 2,
+              "form_path": 3,
+              "workflow_id": 4
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Form Submissions by Form Path — Over Time",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 16,
+        "h": 10
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "auto"
+          },
+          "links": [
+            {
+              "title": "Open workflow in n8n",
+              "url": "${n8n_base_url}/workflow/${__field.labels.workflow_id}",
+              "targetBlank": true
+            }
+          ],
+          "displayName": "${__field.labels.workflow_name} / ${__field.labels.form_path}"
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_count\"))\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> derivative(unit: 1s, nonNegative: true)\n  |> group(columns: [\"_time\", \"workflow_id\", \"form_path\"])\n  |> sum()\n  |> group(columns: [\"workflow_id\", \"form_path\"])\n  |> keep(columns: [\"_time\", \"_value\", \"workflow_id\", \"form_path\"])\n  |> withNames()\n  |> group(columns: [\"workflow_id\", \"workflow_name\", \"form_path\"])\n  |> keep(columns: [\"_time\", \"_value\", \"workflow_id\", \"workflow_name\", \"form_path\"])"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total Submissions",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 5,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto",
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_count\"))\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> increase()\n  |> last()\n  |> group()\n  |> sum()\n  |> rename(columns: {_value: \"Total\"})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Successful Submissions",
+      "gridPos": {
+        "x": 5,
+        "y": 0,
+        "w": 5,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto",
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_count\") and r.status_code =~ /^[23]/)\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> increase()\n  |> last()\n  |> group()\n  |> sum()\n  |> rename(columns: {_value: \"Success\"})"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Failed Submissions",
+      "gridPos": {
+        "x": 10,
+        "y": 0,
+        "w": 5,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto",
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_count\") and r.status_code =~ /^[45]/)\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> increase()\n  |> last()\n  |> group()\n  |> sum()\n  |> rename(columns: {_value: \"Failed\"})"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Success Rate",
+      "gridPos": {
+        "x": 15,
+        "y": 0,
+        "w": 5,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.9
+              },
+              {
+                "color": "green",
+                "value": 0.99
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_count\"))\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> increase()\n  |> last()\n  |> group()\n  |> reduce(\n    identity: {ok: 0.0, total: 0.0},\n    fn: (r, accumulator) => ({\n      ok: accumulator.ok + (if r.status_code =~ /^[23]/ then r._value else 0.0),\n      total: accumulator.total + r._value,\n    }),\n  )\n  |> map(fn: (r) => ({\"Success Rate\": if r.total > 0.0 then r.ok / r.total else 0.0}))"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Current Submissions / min",
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto",
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_count\"))\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> derivative(unit: 1m, nonNegative: true)\n  |> group(columns: [\"_time\"])\n  |> sum()\n  |> group(columns: [])\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> rename(columns: {_value: \"req/min\"})"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Submission Duration — p50 / p90 / p99",
+      "gridPos": {
+        "x": 8,
+        "y": 14,
+        "w": 16,
+        "h": 10
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false,
+            "showPoints": "auto"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_bucket\"))\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> derivative(unit: 1s, nonNegative: true)\n  |> group(columns: [\"_time\", \"le\"])\n  |> sum()\n  |> map(fn: (r) => ({r with le: float(v: r.le)}))\n  |> group(columns: [\"_time\"])\n  |> sort(columns: [\"le\"])\n  |> histogramQuantile(quantile: 0.5)\n  |> group(columns: [])\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> rename(columns: {_value: \"p50\"})"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_bucket\"))\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> derivative(unit: 1s, nonNegative: true)\n  |> group(columns: [\"_time\", \"le\"])\n  |> sum()\n  |> map(fn: (r) => ({r with le: float(v: r.le)}))\n  |> group(columns: [\"_time\"])\n  |> sort(columns: [\"le\"])\n  |> histogramQuantile(quantile: 0.9)\n  |> group(columns: [])\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> rename(columns: {_value: \"p90\"})"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_bucket\"))\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> derivative(unit: 1s, nonNegative: true)\n  |> group(columns: [\"_time\", \"le\"])\n  |> sum()\n  |> map(fn: (r) => ({r with le: float(v: r.le)}))\n  |> group(columns: [\"_time\"])\n  |> sort(columns: [\"le\"])\n  |> histogramQuantile(quantile: 0.99)\n  |> group(columns: [])\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> rename(columns: {_value: \"p99\"})"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Top Workflows",
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 8,
+        "h": 10
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Workflow Name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open workflow in n8n",
+                    "url": "${n8n_base_url}/workflow/${__data.fields[\"workflow_id\"]}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "workflow_id"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Count"
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "workflow_name": "Workflow Name",
+              "_value": "Count"
+            },
+            "indexByName": {
+              "workflow_name": 0,
+              "_value": 1
+            },
+            "excludeByName": {
+              "Time": true
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_count\"))\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> increase()\n  |> last()\n  |> group(columns: [\"workflow_id\"])\n  |> sum()\n  |> group()\n  |> withNames()\n  |> keep(columns: [\"workflow_name\", \"workflow_id\", \"_value\"])"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Average Submission Time per Form Path",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "auto"
+          },
+          "links": [
+            {
+              "title": "Open workflow in n8n",
+              "url": "${n8n_base_url}/workflow/${__field.labels.workflow_id}",
+              "targetBlank": true
+            }
+          ],
+          "displayName": "${__field.labels.workflow_name} / ${__field.labels.form_path}"
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\nimport \"dict\"\nimport \"strings\"\n\nnames = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and r._field == \"n8n_workflow_info\")\n  |> keep(columns: [\"workflow_id\", \"workflow_name\"])\n  |> group()\n  |> unique(column: \"workflow_id\")\n\n// linha fantasma: findColumn falha se o stream estiver vazio\npairs = union(tables: [names, array.from(rows: [{workflow_id: \"\", workflow_name: \"\"}])])\n  |> group()\n  |> map(fn: (r) => ({_value: r.workflow_id + \"|\" + r.workflow_name}))\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\nlookup = dict.fromList(\n  pairs: array.map(\n    arr: pairs,\n    fn: (x) => {\n      p = strings.splitN(v: x, t: \"|\", i: 2)\n      return {key: p[0], value: p[1]}\n    },\n  ),\n)\n\nwithNames = (tables=<-) => tables\n  |> map(fn: (r) => ({r with workflow_name: dict.get(dict: lookup, key: r.workflow_id, default: r.workflow_id)}))\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_form_submission_duration_seconds_sum\" or r._field == \"n8n_form_submission_duration_seconds_count\"))\n  |> filter(fn: (r) => contains(value: r[\"workflow_id\"], set: ${workflow:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> derivative(unit: 1s, nonNegative: true)\n  |> group(columns: [\"_time\", \"_field\", \"workflow_id\", \"form_path\"])\n  |> sum()\n  |> group(columns: [\"workflow_id\", \"form_path\"])\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> filter(fn: (r) => r[\"n8n_form_submission_duration_seconds_count\"] > 0.0)\n  |> map(fn: (r) => ({r with _value: r[\"n8n_form_submission_duration_seconds_sum\"] / r[\"n8n_form_submission_duration_seconds_count\"]}))\n  |> withNames()\n  |> group(columns: [\"workflow_id\", \"workflow_name\", \"form_path\"])\n  |> keep(columns: [\"_time\", \"_value\", \"workflow_id\", \"workflow_name\", \"form_path\"])"
+        }
+      ]
+    }
+  ]
+}

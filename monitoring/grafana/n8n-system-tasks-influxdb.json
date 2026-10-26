@@ -1,0 +1,957 @@
+{
+  "uid": "n8n-system-tasks-influxdb",
+  "title": "n8n System Tasks (InfluxDB)",
+  "description": "Is every n8n system task running? Late or failing tasks show in red.",
+  "tags": [
+    "n8n",
+    "system-tasks"
+  ],
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "n8n Durable Scheduler",
+      "type": "dashboards",
+      "tags": [
+        "scheduler"
+      ],
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "The scheduler that runs durable system tasks",
+      "url": ""
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "InfluxDB",
+        "type": "datasource",
+        "query": "influxdb",
+        "refresh": 1
+      },
+      {
+        "name": "bucket",
+        "label": "Bucket",
+        "type": "constant",
+        "hide": 2,
+        "query": "home",
+        "options": [
+          {
+            "text": "home",
+            "value": "home",
+            "selected": true
+          }
+        ],
+        "current": {
+          "text": "home",
+          "value": "home"
+        }
+      },
+      {
+        "name": "task",
+        "label": "System task",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "${datasource}"
+        },
+        "query": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(\n  bucket: \"${bucket}\",\n  tag: \"task\",\n  predicate: (r) => r._measurement == \"n8n\" and r._field == \"n8n_system_task_info\",\n  start: v.timeRangeStart,\n  stop: v.timeRangeStop,\n)",
+        "multi": true,
+        "includeAll": true,
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "instance",
+        "label": "Main instance",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "${datasource}"
+        },
+        "query": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(\n  bucket: \"${bucket}\",\n  tag: \"url\",\n  predicate: (r) => r._measurement == \"n8n\" and r._field == \"n8n_system_task_info\",\n  start: v.timeRangeStart,\n  stop: v.timeRangeStop,\n)",
+        "multi": true,
+        "includeAll": true,
+        "refresh": 2,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Late Tasks",
+      "description": "Tasks that stopped running. A task is late when its last success is older than two of its intervals, with the interval counted as at least 60 seconds. A task with no success reported in the last 2 days is also late.\n\nBad when: above zero. Find the task in the table below.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\ninfo = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_info\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"info\", v: 1.0, mode: r.mode}))\n\ninterval = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_interval_seconds\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> max()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"interval\", v: r._value, mode: \"\"}))\n\nlastok = from(bucket: \"${bucket}\")\n  |> range(start: -2d)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_last_success_timestamp_seconds\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> max()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"last\", v: r._value, mode: \"\"}))\n\nrunsok = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_run_duration_seconds_count\") and r.result == \"success\")\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> increase()\n  |> last()\n  |> group(columns: [\"task\"])\n  |> sum()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"ok\", v: r._value, mode: \"\"}))\n\nrunsfail = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_run_duration_seconds_count\") and r.result == \"failure\")\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> increase()\n  |> last()\n  |> group(columns: [\"task\"])\n  |> sum()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"fail\", v: r._value, mode: \"\"}))\n\nsched = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_scheduled\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> min()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"sched\", v: r._value, mode: \"\"}))\n\ntbl = union(tables: [info, interval, lastok, runsok, runsfail, sched])\n  |> group(columns: [\"task\"])\n  |> reduce(\n    identity: {mode: \"\", info: 0.0, interval: 0.0, last: 0.0, ok: 0.0, fail: 0.0, sched: -1.0},\n    fn: (r, accumulator) => ({\n      mode: if r.kind == \"info\" then r.mode else accumulator.mode,\n      info: if r.kind == \"info\" then 1.0 else accumulator.info,\n      interval: if r.kind == \"interval\" then r.v else accumulator.interval,\n      last: if r.kind == \"last\" then r.v else accumulator.last,\n      ok: if r.kind == \"ok\" then r.v else accumulator.ok,\n      fail: if r.kind == \"fail\" then r.v else accumulator.fail,\n      sched: if r.kind == \"sched\" then r.v else accumulator.sched,\n    }),\n  )\n  |> filter(fn: (r) => r.info == 1.0)\n  |> map(fn: (r) => {\n    since = float(v: int(v: now())) / 1000000000.0 - r.last\n    window = if r.interval > 60.0 then r.interval else 60.0\n    return {\n      task: r.task,\n      mode: r.mode,\n      \"Scheduled\": r.sched,\n      \"Interval\": r.interval,\n      \"Last success\": if r.last > 0.0 then since else -1.0,\n      \"Late factor\": if r.last > 0.0 then since / window else 1000000000.0,\n      \"Runs\": r.ok,\n      \"Failures\": r.fail,\n    }\n  })\n  |> group()\n\nunion(tables: [\n  tbl\n    |> filter(fn: (r) => r[\"Late factor\"] > 2.0)\n    |> group()\n    |> map(fn: (r) => ({r with _value: 1.0}))\n    |> keep(columns: [\"_value\"]),\n  array.from(rows: [{_value: 0.0}]),\n])\n  |> group()\n  |> sum()\n  |> rename(columns: {_value: \"Late Tasks\"})"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Unscheduled Tasks",
+      "description": "Tasks that n8n could not schedule. A timer task stays stopped until a main restarts. A durable task counts here when its stored job is disabled, quarantined or missing.\n\nBad when: above zero. For a timer task, read the logs of the mains for the scheduling error. For a durable task, check its row in `scheduled_job`.",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\ninfo = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_info\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"info\", v: 1.0, mode: r.mode}))\n\ninterval = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_interval_seconds\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> max()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"interval\", v: r._value, mode: \"\"}))\n\nlastok = from(bucket: \"${bucket}\")\n  |> range(start: -2d)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_last_success_timestamp_seconds\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> max()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"last\", v: r._value, mode: \"\"}))\n\nrunsok = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_run_duration_seconds_count\") and r.result == \"success\")\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> increase()\n  |> last()\n  |> group(columns: [\"task\"])\n  |> sum()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"ok\", v: r._value, mode: \"\"}))\n\nrunsfail = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_run_duration_seconds_count\") and r.result == \"failure\")\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> increase()\n  |> last()\n  |> group(columns: [\"task\"])\n  |> sum()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"fail\", v: r._value, mode: \"\"}))\n\nsched = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_scheduled\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> min()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"sched\", v: r._value, mode: \"\"}))\n\ntbl = union(tables: [info, interval, lastok, runsok, runsfail, sched])\n  |> group(columns: [\"task\"])\n  |> reduce(\n    identity: {mode: \"\", info: 0.0, interval: 0.0, last: 0.0, ok: 0.0, fail: 0.0, sched: -1.0},\n    fn: (r, accumulator) => ({\n      mode: if r.kind == \"info\" then r.mode else accumulator.mode,\n      info: if r.kind == \"info\" then 1.0 else accumulator.info,\n      interval: if r.kind == \"interval\" then r.v else accumulator.interval,\n      last: if r.kind == \"last\" then r.v else accumulator.last,\n      ok: if r.kind == \"ok\" then r.v else accumulator.ok,\n      fail: if r.kind == \"fail\" then r.v else accumulator.fail,\n      sched: if r.kind == \"sched\" then r.v else accumulator.sched,\n    }),\n  )\n  |> filter(fn: (r) => r.info == 1.0)\n  |> map(fn: (r) => {\n    since = float(v: int(v: now())) / 1000000000.0 - r.last\n    window = if r.interval > 60.0 then r.interval else 60.0\n    return {\n      task: r.task,\n      mode: r.mode,\n      \"Scheduled\": r.sched,\n      \"Interval\": r.interval,\n      \"Last success\": if r.last > 0.0 then since else -1.0,\n      \"Late factor\": if r.last > 0.0 then since / window else 1000000000.0,\n      \"Runs\": r.ok,\n      \"Failures\": r.fail,\n    }\n  })\n  |> group()\n\nunion(tables: [\n  tbl\n    |> filter(fn: (r) => r[\"Scheduled\"] == 0.0)\n    |> group()\n    |> map(fn: (r) => ({r with _value: 1.0}))\n    |> keep(columns: [\"_value\"]),\n  array.from(rows: [{_value: 0.0}]),\n])\n  |> group()\n  |> sum()\n  |> rename(columns: {_value: \"Unscheduled Tasks\"})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Failed Runs",
+      "description": "Runs that failed in the selected time range. A run that stops at shutdown is not a failure.\n\nBad when: above zero. Find the task on Failed Runs per Task, then read its error in the logs.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nunion(tables: [\n  from(bucket: \"${bucket}\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_run_duration_seconds_count\") and r.result == \"failure\")\n    |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n    |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n    |> increase()\n    |> last()\n    |> group()\n    |> keep(columns: [\"_value\"]),\n  array.from(rows: [{_value: 0.0}]),\n])\n  |> group()\n  |> sum()\n  |> rename(columns: {_value: \"Failed Runs\"})"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Tasks Reporting",
+      "description": "System tasks that the mains report now.\n\nBad when: lower than usual. A task that is missing from this count is not monitored.",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\ninfo = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_info\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"info\", v: 1.0, mode: r.mode}))\n\ninterval = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_interval_seconds\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> max()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"interval\", v: r._value, mode: \"\"}))\n\nlastok = from(bucket: \"${bucket}\")\n  |> range(start: -2d)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_last_success_timestamp_seconds\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> max()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"last\", v: r._value, mode: \"\"}))\n\nrunsok = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_run_duration_seconds_count\") and r.result == \"success\")\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> increase()\n  |> last()\n  |> group(columns: [\"task\"])\n  |> sum()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"ok\", v: r._value, mode: \"\"}))\n\nrunsfail = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_run_duration_seconds_count\") and r.result == \"failure\")\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> increase()\n  |> last()\n  |> group(columns: [\"task\"])\n  |> sum()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"fail\", v: r._value, mode: \"\"}))\n\nsched = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_scheduled\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> min()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"sched\", v: r._value, mode: \"\"}))\n\ntbl = union(tables: [info, interval, lastok, runsok, runsfail, sched])\n  |> group(columns: [\"task\"])\n  |> reduce(\n    identity: {mode: \"\", info: 0.0, interval: 0.0, last: 0.0, ok: 0.0, fail: 0.0, sched: -1.0},\n    fn: (r, accumulator) => ({\n      mode: if r.kind == \"info\" then r.mode else accumulator.mode,\n      info: if r.kind == \"info\" then 1.0 else accumulator.info,\n      interval: if r.kind == \"interval\" then r.v else accumulator.interval,\n      last: if r.kind == \"last\" then r.v else accumulator.last,\n      ok: if r.kind == \"ok\" then r.v else accumulator.ok,\n      fail: if r.kind == \"fail\" then r.v else accumulator.fail,\n      sched: if r.kind == \"sched\" then r.v else accumulator.sched,\n    }),\n  )\n  |> filter(fn: (r) => r.info == 1.0)\n  |> map(fn: (r) => {\n    since = float(v: int(v: now())) / 1000000000.0 - r.last\n    window = if r.interval > 60.0 then r.interval else 60.0\n    return {\n      task: r.task,\n      mode: r.mode,\n      \"Scheduled\": r.sched,\n      \"Interval\": r.interval,\n      \"Last success\": if r.last > 0.0 then since else -1.0,\n      \"Late factor\": if r.last > 0.0 then since / window else 1000000000.0,\n      \"Runs\": r.ok,\n      \"Failures\": r.fail,\n    }\n  })\n  |> group()\n\nunion(tables: [\n  tbl\n    |> group()\n    |> map(fn: (r) => ({r with _value: 1.0}))\n    |> keep(columns: [\"_value\"]),\n  array.from(rows: [{_value: 0.0}]),\n])\n  |> group()\n  |> sum()\n  |> rename(columns: {_value: \"Tasks Reporting\"})"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Tasks",
+      "description": "One row for each system task, sorted with the most overdue task first (highest late factor).\n\n* Runs on: the durable scheduler, a timer on the leader main, or a timer on every instance.\n* Last success: the most recent success on any main in the last 2 days. A restart does not reset it.\n* Late factor: last success age divided by the interval, with the interval counted as at least 60 seconds. 1 is normal. 2 or more means the task missed a run.\n* Runs and Failures: counts in the selected time range. A daily task often shows 0 runs, so read Last success first.\n\nBad when: a cell is red.",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 18
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\ninfo = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_info\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"info\", v: 1.0, mode: r.mode}))\n\ninterval = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_interval_seconds\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> max()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"interval\", v: r._value, mode: \"\"}))\n\nlastok = from(bucket: \"${bucket}\")\n  |> range(start: -2d)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_last_success_timestamp_seconds\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> max()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"last\", v: r._value, mode: \"\"}))\n\nrunsok = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_run_duration_seconds_count\") and r.result == \"success\")\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> increase()\n  |> last()\n  |> group(columns: [\"task\"])\n  |> sum()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"ok\", v: r._value, mode: \"\"}))\n\nrunsfail = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_run_duration_seconds_count\") and r.result == \"failure\")\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> increase()\n  |> last()\n  |> group(columns: [\"task\"])\n  |> sum()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"fail\", v: r._value, mode: \"\"}))\n\nsched = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_scheduled\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> last()\n  |> group(columns: [\"task\"])\n  |> min()\n  |> group()\n  |> map(fn: (r) => ({task: r.task, kind: \"sched\", v: r._value, mode: \"\"}))\n\ntbl = union(tables: [info, interval, lastok, runsok, runsfail, sched])\n  |> group(columns: [\"task\"])\n  |> reduce(\n    identity: {mode: \"\", info: 0.0, interval: 0.0, last: 0.0, ok: 0.0, fail: 0.0, sched: -1.0},\n    fn: (r, accumulator) => ({\n      mode: if r.kind == \"info\" then r.mode else accumulator.mode,\n      info: if r.kind == \"info\" then 1.0 else accumulator.info,\n      interval: if r.kind == \"interval\" then r.v else accumulator.interval,\n      last: if r.kind == \"last\" then r.v else accumulator.last,\n      ok: if r.kind == \"ok\" then r.v else accumulator.ok,\n      fail: if r.kind == \"fail\" then r.v else accumulator.fail,\n      sched: if r.kind == \"sched\" then r.v else accumulator.sched,\n    }),\n  )\n  |> filter(fn: (r) => r.info == 1.0)\n  |> map(fn: (r) => {\n    since = float(v: int(v: now())) / 1000000000.0 - r.last\n    window = if r.interval > 60.0 then r.interval else 60.0\n    return {\n      task: r.task,\n      mode: r.mode,\n      \"Scheduled\": r.sched,\n      \"Interval\": r.interval,\n      \"Last success\": if r.last > 0.0 then since else -1.0,\n      \"Late factor\": if r.last > 0.0 then since / window else 1000000000.0,\n      \"Runs\": r.ok,\n      \"Failures\": r.fail,\n    }\n  })\n  |> group()\n\ntbl\n  |> sort(columns: [\"Late factor\"], desc: true)"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "task": 0,
+              "mode": 1,
+              "Scheduled": 2,
+              "Interval": 3,
+              "Last success": 4,
+              "Late factor": 5,
+              "Runs": 6,
+              "Failures": 7
+            },
+            "renameByName": {
+              "task": "Task",
+              "mode": "Runs on"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Task"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 300
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Runs on"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "durable": {
+                        "text": "Durable scheduler",
+                        "color": "blue",
+                        "index": 0
+                      },
+                      "leader_timer": {
+                        "text": "Leader timer",
+                        "color": "text",
+                        "index": 1
+                      },
+                      "in_memory": {
+                        "text": "Leader timer",
+                        "color": "text",
+                        "index": 2
+                      },
+                      "instance_timer": {
+                        "text": "Every instance",
+                        "color": "text",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Scheduled"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Yes",
+                        "color": "transparent",
+                        "index": 0
+                      },
+                      "0": {
+                        "text": "No",
+                        "color": "red",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Interval"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dtdurations"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last success"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dtdurations"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "-1": {
+                        "text": "None in 2 days",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Late factor"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "transparent",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 2
+                    },
+                    {
+                      "color": "red",
+                      "value": 3
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "range",
+                    "options": {
+                      "from": 1000000000.0,
+                      "to": null,
+                      "result": {
+                        "text": "No success",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Runs"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failures"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "transparent",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Late factor",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Failed Runs per Task",
+      "description": "Failed runs by task, counted over a trailing window that spans several scrapes. The chart stays empty while every task succeeds.\n\nBad when: one task fails again and again. Read the error in the logs of the main that ran it.",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "spanNulls": false,
+            "showPoints": "auto"
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "displayName": "${__field.labels.task}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "query": "import \"array\"\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_run_duration_seconds_count\") and r.result == \"failure\")\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> difference(nonNegative: true)\n  |> group(columns: [\"_time\", \"task\"])\n  |> sum()\n  |> group(columns: [\"task\"])\n  |> keep(columns: [\"_time\", \"_value\", \"task\"])\n  |> map(fn: (r) => ({r with _value: float(v: int(v: r._value + 0.5))}))\n  |> filter(fn: (r) => r._value > 0.0)"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Troubleshooting",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "Run Duration p95",
+          "description": "How long runs take, by task.\n\nBad when: p95 is near the interval of the task. The next run then overlaps or is skipped.",
+          "gridPos": {
+            "x": 0,
+            "y": 31,
+            "w": 12,
+            "h": 8
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 10,
+                "spanNulls": false,
+                "showPoints": "never"
+              },
+              "displayName": "${__field.labels.task}"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${datasource}"
+              },
+              "query": "import \"array\"\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_run_duration_seconds_bucket\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> derivative(unit: 1s, nonNegative: true)\n  |> group(columns: [\"_time\", \"le\", \"task\"])\n  |> sum()\n  |> map(fn: (r) => ({r with le: float(v: r.le)}))\n  |> group(columns: [\"_time\", \"task\"])\n  |> sort(columns: [\"le\"])\n  |> histogramQuantile(quantile: 0.95)\n  |> group(columns: [\"task\"])\n  |> keep(columns: [\"_time\", \"_value\", \"task\"])"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "Runs in Progress",
+          "description": "Runs that are in progress now, by task.\n\nBad when: a task stays above zero for longer than its p95 duration. That run is stuck.",
+          "gridPos": {
+            "x": 12,
+            "y": 31,
+            "w": 12,
+            "h": 8
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 10,
+                "spanNulls": false,
+                "showPoints": "never"
+              },
+              "decimals": 0,
+              "displayName": "${__field.labels.task}"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${datasource}"
+              },
+              "query": "import \"array\"\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_runs_in_flight\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> group(columns: [\"_time\", \"task\"])\n  |> sum()\n  |> group(columns: [\"task\"])\n  |> keep(columns: [\"_time\", \"_value\", \"task\"])\n  |> filter(fn: (r) => r._value > 0.0)"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "type": "timeseries",
+          "title": "Skipped Runs (timers only)",
+          "description": "Skipped runs by task and reason, counted over a trailing window that spans several scrapes. These runs came due on a timer but did not start. `overlap`: the previous run was still in progress. `provisioned_elsewhere`: the durable scheduler runs the task. `aborted` and `coalesced` are harmless. Durable tasks never appear here.\n\nBad when: `overlap` is steady. The runs take longer than the interval.",
+          "gridPos": {
+            "x": 0,
+            "y": 39,
+            "w": 12,
+            "h": 8
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "spanNulls": false,
+                "showPoints": "auto"
+              },
+              "displayName": "${__field.labels.task} · ${__field.labels.reason}"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${datasource}"
+              },
+              "query": "import \"array\"\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_runs_skipped_total\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> difference(nonNegative: true)\n  |> group(columns: [\"_time\", \"task\", \"reason\"])\n  |> sum()\n  |> group(columns: [\"task\", \"reason\"])\n  |> keep(columns: [\"_time\", \"_value\", \"task\", \"reason\"])\n  |> map(fn: (r) => ({r with _value: float(v: int(v: r._value + 0.5))}))\n  |> filter(fn: (r) => r._value > 0.0)"
+            }
+          ]
+        },
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "Retries (timers only)",
+          "description": "Retries after failed timer runs, by task, counted over a trailing window that spans several scrapes. Durable retries are on the Durable Scheduler dashboard.\n\nBad when: retries rise together with Failed Runs per Task.",
+          "gridPos": {
+            "x": 12,
+            "y": 39,
+            "w": 12,
+            "h": 8
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "spanNulls": false,
+                "showPoints": "auto"
+              },
+              "displayName": "${__field.labels.task}"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${datasource}"
+              },
+              "query": "import \"array\"\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_retries_total\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> difference(nonNegative: true)\n  |> group(columns: [\"_time\", \"task\"])\n  |> sum()\n  |> group(columns: [\"task\"])\n  |> keep(columns: [\"_time\", \"_value\", \"task\"])\n  |> map(fn: (r) => ({r with _value: float(v: int(v: r._value + 0.5))}))\n  |> filter(fn: (r) => r._value > 0.0)"
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "Time to Next Run",
+          "description": "Time until the next run of each task. A healthy task draws a sawtooth. Durable tasks show their stored next run on n8n versions that export it. On older versions only timer tasks appear here.\n\nBad when: a line goes below zero and stays there. That task stopped. A durable task whose job is disabled leaves this chart instead, and counts in Unscheduled Tasks.",
+          "gridPos": {
+            "x": 0,
+            "y": 47,
+            "w": 24,
+            "h": 8
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": null,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 10,
+                "spanNulls": false,
+                "showPoints": "never"
+              },
+              "displayName": "${__field.labels.task}"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${datasource}"
+              },
+              "query": "import \"array\"\n\nevery = if int(v: v.windowPeriod) > int(v: 1m) then v.windowPeriod else 1m\n\nfrom(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"n8n\" and (r._field == \"n8n_system_task_next_run_timestamp_seconds\"))\n  |> filter(fn: (r) => contains(value: r[\"task\"], set: ${task:json}))\n  |> filter(fn: (r) => contains(value: r[\"url\"], set: ${instance:json}))\n  |> aggregateWindow(every: every, fn: last, createEmpty: false)\n  |> group(columns: [\"_time\", \"task\"])\n  |> max()\n  |> group(columns: [\"task\"])\n  |> keep(columns: [\"_time\", \"_value\", \"task\"])\n  |> map(fn: (r) => ({r with _value: r._value - float(v: uint(v: r._time)) / 1000000000.0}))"
+            }
+          ]
+        }
+      ],
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${datasource}"
+      },
+      "targets": []
+    }
+  ],
+  "version": 1
+}
