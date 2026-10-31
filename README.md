@@ -22,7 +22,7 @@ The services run on Docker and are defined in the compose files of this reposito
 ### Media
 
 - [Jellyfin](https://jellyfin.org/)
-- [Jellyseerr](https://github.com/Fallenbagel/jellyseerr) - media requests
+- [Seerr](https://github.com/seerr-team/seerr) - media requests
 - [Radarr](https://radarr.video/) - movies management
 - [Sonarr](https://sonarr.tv/) - series management
 - [Bazarr](https://wiki.bazarr.media/) - subtitles
@@ -45,7 +45,7 @@ The services run on Docker and are defined in the compose files of this reposito
 
 ### Monitoring
 
-- [Grafana](http://grafana.com) - dashboards, including the n8n ones in `monitoring/grafana/`
+- [Grafana](https://grafana.com) - dashboards, including the n8n ones in `monitoring/grafana/`
 - [InfluxDB](https://www.influxdata.com) - metrics storage
 - [qBittorrent Exporter](https://github.com/vitorhugoro1/qbittorrent-exporter) - QBittorrent metrics (`monitoring/docker-compose.yml`)
 
