@@ -6,32 +6,48 @@ I am building this "setup" to stop subscribe to more services who I really use s
 
 ## Environment
 
-My current setup is running in a mid end old laptop who does not have use, then I installed a Ubuntu Server with some custom twearks to make the OS properly work on a notebook, the settings of machine is listed down below:
+My setup runs on a small desktop build with Ubuntu Server as the OS. The specs of the machine are listed below:
 
-- Intel Core i5-5300U
-- Intel Graphics 5500
-- 8GB DDR3L
+- Motherboard: ASRock H310CM-HG4
+- CPU: Intel Core i5-9400F
+- GPU: NVIDIA Quadro P400 2GB
+- RAM: 8GB DDR4 Kingston 2666MHz
 - 1x SSD Kingston 256GB
 - 1x External HDD Seagate 4TB
 
 ## Services and Tools
 
-The orchestrate things I installed [CasaOS](https://casaos.io/) with [Portainer](https://www.portainer.io/), where I use the CasaOS has a Dashboard and Monitoring tool and the Portainer to manage the services on Docker. I have the follow services installed on my "server":
+The services run on Docker and are defined in the compose files of this repository. I use [Dockhand](https://github.com/Finsys/dockhand) to manage the stacks. These are the services running on my "server":
 
-- [Jellyfin](https://jellyfin.org/)
-- [Jellyseerr](https://github.com/Fallenbagel/jellyseerr)
-- [Prowlarr](https://prowlarr.com/)
-- [Bazarr](https://wiki.bazarr.media/)
-- [Radarr](https://radarr.video/)
-- [Sonarr](https://sonarr.tv/)
-- [Flaresolverr](https://github.com/FlareSolverr/FlareSolverr)
-- [QBittorrent](https://www.qbittorrent.org/)
-- [Home Assistant](https://www.home-assistant.io/)
-- [Cloudflared](https://github.com/cloudflare/cloudflared)
-- [Tailscale](https://tailscale.com/)
-- [Grafana](http://grafana.com)
-- [InfluxDB](https://www.influxdata.com)
-- [Gluetun](https://github.com/qdm12/gluetun-wiki/tree/main)
+### Media
+
+- [Jellyseerr](https://github.com/Fallenbagel/jellyseerr) - media requests
+- [Radarr](https://radarr.video/) - movies management
+- [Sonarr](https://sonarr.tv/) - series management
+- [Bazarr](https://wiki.bazarr.media/) - subtitles
+- [Prowlarr](https://prowlarr.com/) - indexers, with custom definitions in `prowlarr/`
+- [Byparr](https://github.com/ThePhaseless/Byparr) - Cloudflare challenge solver
+- [QBittorrent](https://www.qbittorrent.org/) - torrent downloads
+
+### Network
+
+- [Gluetun](https://github.com/qdm12/gluetun-wiki/tree/main) - VPN client (ProtonVPN with WireGuard and port forwarding) used by QBittorrent, Prowlarr and Byparr
+- [Pi-hole](https://pi-hole.net/) - DNS server and ad blocker
+- [Nginx Proxy Manager](https://nginxproxymanager.com/) - reverse proxy (`docker-compose.nginx.yml`)
+
+### Automation
+
+- [n8n](https://n8n.io/) - workflow automation in queue mode, with Redis, a worker and external task runners (`docker-compose.n8n.yml`)
+
+### Monitoring
+
+- [Grafana](http://grafana.com) - dashboards, including the n8n ones in `monitoring/grafana/`
+- [InfluxDB](https://www.influxdata.com) - metrics storage
+- [qBittorrent Exporter](https://github.com/vitorhugoro1/qbittorrent-exporter) - QBittorrent metrics (`monitoring/docker-compose.yml`)
+
+### Management
+
+- [Dockhand](https://github.com/Finsys/dockhand) - Docker stacks manager
 
 ## Install commands
 
@@ -72,7 +88,7 @@ Most my setup is make using this channels and blogs as reference to inspiration 
 
 - [ ] Use Proxmox as OS
 - [ ] Automate even the OS setup with Ansible
-- [ ] Add a new main server as Zimaboard or Dell Optiplex Micro
+- [x] Add a new main server as Zimaboard or Dell Optiplex Micro
 - [ ] Automate Jellyfin and Home Assistant initial setup
 - [ ] Organize the contents of automations
-- [ ] Add newtwork layer with DNS Server such like PiHole
+- [x] Add newtwork layer with DNS Server such like PiHole
