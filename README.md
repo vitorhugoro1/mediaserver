@@ -21,6 +21,7 @@ The services run on Docker and are defined in the compose files of this reposito
 
 ### Media
 
+- [Jellyfin](https://jellyfin.org/)
 - [Jellyseerr](https://github.com/Fallenbagel/jellyseerr) - media requests
 - [Radarr](https://radarr.video/) - movies management
 - [Sonarr](https://sonarr.tv/) - series management
@@ -32,11 +33,14 @@ The services run on Docker and are defined in the compose files of this reposito
 ### Network
 
 - [Gluetun](https://github.com/qdm12/gluetun-wiki/tree/main) - VPN client (ProtonVPN with WireGuard and port forwarding) used by QBittorrent, Prowlarr and Byparr
+- [Cloudflared](https://github.com/cloudflare/cloudflared)
+- [Tailscale](https://tailscale.com/)
 - [Pi-hole](https://pi-hole.net/) - DNS server and ad blocker
 - [Nginx Proxy Manager](https://nginxproxymanager.com/) - reverse proxy (`docker-compose.nginx.yml`)
 
 ### Automation
 
+- [Home Assistant](https://www.home-assistant.io/)
 - [n8n](https://n8n.io/) - workflow automation in queue mode, with Redis, a worker and external task runners (`docker-compose.n8n.yml`)
 
 ### Monitoring
