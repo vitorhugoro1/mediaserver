@@ -8,6 +8,7 @@ services:
     ports:
       - 17871:17871
     image: vitorhugoro1/qbittorrent-exporter:latest
+    restart: unless-stopped
 
 networks:
   mediaserver:
