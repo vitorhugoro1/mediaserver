@@ -5,6 +5,7 @@
             "workdir": "/home/runner",
             "command": "/usr/local/bin/node",
             "args": [
+                "--max-old-space-size=3072",
                 "--disallow-code-generation-from-strings",
                 "--disable-proto=delete",
                 "/opt/runners/task-runner-javascript/dist/start.js"
@@ -23,7 +24,7 @@
                 "DEPLOYMENT_NAME"
             ],
             "env-overrides": {
-                "NODE_FUNCTION_ALLOW_BUILTIN": "crypto,zlib,fs,path,os",
+                "NODE_FUNCTION_ALLOW_BUILTIN": "crypto,zlib,fs,path,os,localStorage,stream,util,http,https,url,querystring,buffer,events,child_process",
                 "NODE_FUNCTION_ALLOW_EXTERNAL": "moment,uuid,mal-scraper,axios,dayjs,cheerio",
                 "N8N_RUNNERS_HEALTH_CHECK_SERVER_HOST": "0.0.0.0"
             }
