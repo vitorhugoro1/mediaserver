@@ -19,6 +19,8 @@ x-n8n-environment: &n8n-environment
   N8N_METRICS_INCLUDE_QUEUE_METRICS: "true"
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "3072"
   NODE_OPTIONS: "--max-old-space-size=3072"
+  N8N_RUNNERS_TASK_REQUEST_TIMEOUT: "360"
+  N8N_RUNNERS_MAX_CONCURRENCY: "20"
 
 x-runner-environment: &runner-environment
   N8N_RUNNERS_VERSION: stable
@@ -26,6 +28,7 @@ x-runner-environment: &runner-environment
   N8N_RUNNERS_MAX_CONCURRENCY: "20"
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "3072"
   NODE_OPTIONS: "--max-old-space-size=3072"
+  N8N_RUNNERS_TASK_REQUEST_TIMEOUT: "360"
 
 services:
   n8n:
