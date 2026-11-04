@@ -1,0 +1,33 @@
+services:
+  # SERVIDOR DE AUDIOBOOKS (progresso salvo + app mobile)
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:latest
+    container_name: audiobookshelf
+    environment:
+      - TZ=America/Sao_Paulo
+    ports:
+      - 13378:80
+    volumes:
+      - /media/Expansion/Media Server/Audiobooks:/audiobooks
+      - ~/data/audiobookshelf/config:/config
+      - ~/data/audiobookshelf/metadata:/metadata
+    restart: unless-stopped
+
+  # MOTOR DE VOZ (TTS Kokoro, API compativel com OpenAI, so CPU)
+  # O n8n chama POST /v1/audio/speech neste servico.
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    container_name: kokoro
+    environment:
+      - ONNX_NUM_THREADS=4        # deixa 2 nucleos para Jellyfin/Sonarr
+      - ONNX_INTER_OP_THREADS=2
+    ports:
+      - 8880:8880
+    cpus: 4
+    mem_limit: 3g
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:8880/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped

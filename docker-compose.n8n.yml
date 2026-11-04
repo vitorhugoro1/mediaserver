@@ -1,33 +1,41 @@
+x-n8n-environment: &n8n-environment
+  TZ: America/Sao_Paulo
+  NODE_FUNCTION_ALLOW_BUILTIN: "*"
+  N8N_RUNNERS_ENABLED: "true"
+  N8N_RUNNERS_MODE: external
+  N8N_RUNNERS_AUTH_TOKEN: ${N8N_RUNNERS_AUTH_TOKEN}
+  WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+  CREDENTIALS_OVERWRITE_ENDPOINT: send-credentials
+  N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+  N8N_SKIP_AUTH_ON_OAUTH_CALLBACK: "true"
+  N8N_RUNNERS_BROKER_LISTEN_ADDRESS: 0.0.0.0
+  OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS: "true"
+  EXECUTIONS_MODE: queue
+  QUEUE_BULL_REDIS_HOST: redis
+  QUEUE_HEALTH_CHECK_ACTIVE: "true"
+  N8N_PATH: /
+  N8N_PUBLIC_API_ENDPOINT: api
+  N8N_METRICS: "true"
+  N8N_METRICS_INCLUDE_QUEUE_METRICS: "true"
+
+x-runner-environment: &runner-environment
+  N8N_RUNNERS_VERSION: stable
+  N8N_RUNNERS_AUTH_TOKEN: ${N8N_RUNNERS_AUTH_TOKEN}
+  N8N_RUNNERS_MAX_CONCURRENCY: "20"
+
 services:
   n8n:
     image: docker.n8n.io/n8nio/n8n:stable
     container_name: n8n-main
     environment:
-      - TZ=America/Sao_Paulo
-      - NODE_FUNCTION_ALLOW_BUILTIN=*
-      - N8N_RUNNERS_ENABLED=true
-      - N8N_RUNNERS_MODE=external
-      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
-      - WEBHOOK_URL=${N8N_WEBHOOK_URL}
-      - CREDENTIALS_OVERWRITE_ENDPOINT=send-credentials
-      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
-      - N8N_SKIP_AUTH_ON_OAUTH_CALLBACK=true
-      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
-      - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true
-      - EXECUTIONS_MODE=queue
-      - QUEUE_BULL_REDIS_HOST=redis
-      - QUEUE_HEALTH_CHECK_ACTIVE=true
-      - N8N_PATH=/
-      - N8N_PUBLIC_API_ENDPOINT=api
-      - N8N_METRICS=true
-      - N8N_METRICS_INCLUDE_QUEUE_METRICS=true
-      - N8N_METRICS_INCLUDE_SYSTEM_TASK_METRICS=true
-      - N8N_METRICS_INCLUDE_WEBHOOK_METRICS=true
-      - N8N_METRICS_INCLUDE_WORKFLOW_INFO=true
-      - N8N_METRICS_INCLUDE_POLL_TRIGGER_METRICS=true
-      - N8N_SCHEDULER_ENABLED=true
-      - N8N_SCHEDULER_POLL_TRIGGERS_ENABLED=true
-      - N8N_SCHEDULER_SYSTEM_TASKS_ENABLED=true
+      <<: *n8n-environment
+      N8N_METRICS_INCLUDE_SYSTEM_TASK_METRICS: "true"
+      N8N_METRICS_INCLUDE_WEBHOOK_METRICS: "true"
+      N8N_METRICS_INCLUDE_WORKFLOW_INFO: "true"
+      N8N_METRICS_INCLUDE_POLL_TRIGGER_METRICS: "true"
+      N8N_SCHEDULER_ENABLED: "true"
+      N8N_SCHEDULER_POLL_TRIGGERS_ENABLED: "true"
+      N8N_SCHEDULER_SYSTEM_TASKS_ENABLED: "true"
     ports:
       - 5678:5678
     volumes:
@@ -57,10 +65,8 @@ services:
     container_name: n8n-runners
     restart: unless-stopped
     environment:
-      - N8N_RUNNERS_VERSION=stable
-      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
-      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
-      - N8N_RUNNERS_MAX_CONCURRENCY=20
+      <<: *runner-environment
+      N8N_RUNNERS_TASK_BROKER_URI: http://n8n:5679
     volumes:
       - ./n8n/n8n-task-runners.json:/etc/n8n-task-runners.json
     depends_on:
@@ -71,24 +77,7 @@ services:
     container_name: n8n-worker
     command: worker
     environment:
-      - TZ=America/Sao_Paulo
-      - NODE_FUNCTION_ALLOW_BUILTIN=*
-      - N8N_RUNNERS_ENABLED=true
-      - N8N_RUNNERS_MODE=external
-      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
-      - WEBHOOK_URL=${N8N_WEBHOOK_URL}
-      - CREDENTIALS_OVERWRITE_ENDPOINT=send-credentials
-      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
-      - N8N_SKIP_AUTH_ON_OAUTH_CALLBACK=true
-      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
-      - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true
-      - EXECUTIONS_MODE=queue
-      - QUEUE_BULL_REDIS_HOST=redis
-      - QUEUE_HEALTH_CHECK_ACTIVE=true
-      - N8N_PATH=/
-      - N8N_PUBLIC_API_ENDPOINT=api
-      - N8N_METRICS=true
-      - N8N_METRICS_INCLUDE_QUEUE_METRICS=true
+      <<: *n8n-environment
     volumes:
       - ~/data/n8n:/home/node/.n8n
     restart: unless-stopped
@@ -105,10 +94,8 @@ services:
     container_name: n8n-worker-runners
     restart: unless-stopped
     environment:
-      - N8N_RUNNERS_VERSION=stable
-      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
-      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
-      - N8N_RUNNERS_MAX_CONCURRENCY=20
+      <<: *runner-environment
+      N8N_RUNNERS_TASK_BROKER_URI: http://n8n-worker:5679
     volumes:
       - ./n8n/n8n-task-runners.json:/etc/n8n-task-runners.json
     depends_on:
