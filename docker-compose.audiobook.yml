@@ -24,7 +24,7 @@ services:
     ports:
       - 8880:8880
     cpus: 4
-    mem_limit: 3g
+    mem_limit: 3.5G
     healthcheck:
       test: ['CMD-SHELL', 'curl -f http://localhost:8880/health || exit 1']
       interval: 30s
